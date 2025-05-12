@@ -1,15 +1,17 @@
 
 import { createContext, ReactNode, useContext, useEffect, useState } from "react";
-import { User, UserRole } from "../types/auth";
+import { User as AuthUser, UserRole } from "../types/auth";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/components/ui/sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { Session, User as SupabaseUser } from "@supabase/supabase-js";
 
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   isLoading: boolean;
-  login: (email: string, password: string, role: UserRole) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   signup: (name: string, email: string, password: string, role: UserRole) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 // Create auth context
@@ -17,54 +19,73 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Create provider component
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Check if user is logged in
+  // Convert Supabase user to our app user
+  const mapSupabaseUser = (supabaseUser: SupabaseUser): AuthUser => {
+    return {
+      id: supabaseUser.id,
+      email: supabaseUser.email || '',
+      name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || '',
+      role: (supabaseUser.user_metadata?.role as UserRole) || 'user'
+    };
+  };
+
+  // Initialize auth state
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setIsLoading(false);
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, currentSession) => {
+        setSession(currentSession);
+        
+        if (currentSession?.user) {
+          const mappedUser = mapSupabaseUser(currentSession.user);
+          setUser(mappedUser);
+        } else {
+          setUser(null);
+        }
+      }
+    );
+
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      setSession(currentSession);
+      if (currentSession?.user) {
+        const mappedUser = mapSupabaseUser(currentSession.user);
+        setUser(mappedUser);
+      }
+      setIsLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   // Login function
-  const login = async (email: string, password: string, role: UserRole) => {
-    // This is a mock function. In a real app, you'd connect to a backend API
+  const login = async (email: string, password: string) => {
     setIsLoading(true);
     
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 800));
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
       
-      // Mock credentials check for demo
-      if (email === "" || password === "") {
-        throw new Error("Please enter both email and password");
+      if (error) {
+        throw error;
       }
       
-      // Create mock user
-      const newUser: User = {
-        id: Date.now().toString(),
-        email,
-        name: email.split('@')[0],
-        role
-      };
-      
-      // Save user to localStorage
-      localStorage.setItem("user", JSON.stringify(newUser));
-      
-      // Update state
-      setUser(newUser);
-      
-      // Show success message
-      toast.success("Logged in successfully");
-      
-      // Redirect based on role
-      navigate(role === "admin" ? "/admin/dashboard" : "/dashboard");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Login failed");
+      if (data?.user) {
+        const mappedUser = mapSupabaseUser(data.user);
+        toast.success("Logged in successfully");
+        
+        // Redirect based on role
+        navigate(mappedUser.role === "admin" ? "/admin/dashboard" : "/dashboard");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Login failed");
     } finally {
       setIsLoading(false);
     }
@@ -72,50 +93,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Signup function
   const signup = async (name: string, email: string, password: string, role: UserRole) => {
-    // This is a mock function. In a real app, you'd connect to a backend API
     setIsLoading(true);
     
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 800));
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+            role
+          }
+        }
+      });
       
-      // Mock validation check
-      if (!name || !email || !password) {
-        throw new Error("Please fill in all required fields");
+      if (error) {
+        throw error;
       }
       
-      // Create mock user
-      const newUser: User = {
-        id: Date.now().toString(),
-        email,
-        name,
-        role
-      };
-      
-      // Save user to localStorage
-      localStorage.setItem("user", JSON.stringify(newUser));
-      
-      // Update state
-      setUser(newUser);
-      
-      // Show success message
-      toast.success("Account created successfully");
-      
-      // Redirect based on role
-      navigate(role === "admin" ? "/admin/dashboard" : "/dashboard");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Signup failed");
+      if (data?.user) {
+        toast.success("Account created successfully. Please check your email for verification.");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Signup failed");
     } finally {
       setIsLoading(false);
     }
   };
 
   // Logout function
-  const logout = () => {
-    localStorage.removeItem("user");
-    setUser(null);
-    toast.success("Logged out successfully");
-    navigate("/login");
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+      toast.success("Logged out successfully");
+      navigate("/login");
+    } catch (error: any) {
+      toast.error(error.message || "Logout failed");
+    }
   };
 
   return (

@@ -7,19 +7,42 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserRole } from "@/types/auth";
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Lock, User, UserPlus } from "lucide-react";
+import { Link, Navigate } from "react-router-dom";
+import { Lock, Mail, User } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const Signup = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>("user");
-  const { signup, isLoading } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+  const { signup, isLoading, user } = useAuth();
+
+  // If already logged in, redirect to dashboard
+  if (user) {
+    return <Navigate to={user.role === "admin" ? "/admin/dashboard" : "/dashboard"} replace />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await signup(name, email, password, role);
+    setError(null);
+    
+    if (!name || !email || !password) {
+      setError("Please fill in all required fields");
+      return;
+    }
+    
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+    
+    try {
+      await signup(name, email, password, role);
+    } catch (err) {
+      // Error is handled in the signup function and displayed via toast
+    }
   };
 
   return (
@@ -31,6 +54,11 @@ const Signup = () => {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
               <div className="relative">
@@ -59,7 +87,7 @@ const Signup = () => {
                   className="pl-10"
                   required
                 />
-                <User className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                <Mail className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
               </div>
             </div>
             <div className="space-y-2">
@@ -73,6 +101,7 @@ const Signup = () => {
                   disabled={isLoading}
                   className="pl-10"
                   required
+                  minLength={6}
                 />
                 <Lock className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
               </div>

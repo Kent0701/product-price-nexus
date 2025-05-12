@@ -3,22 +3,37 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useAuth } from "@/contexts/AuthContext";
-import { UserRole } from "@/types/auth";
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Lock, User } from "lucide-react";
+import { Link, Navigate } from "react-router-dom";
+import { Lock, Mail } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<UserRole>("user");
-  const { login, isLoading } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+  const { login, isLoading, user } = useAuth();
+
+  // If already logged in, redirect to dashboard
+  if (user) {
+    return <Navigate to={user.role === "admin" ? "/admin/dashboard" : "/dashboard"} replace />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await login(email, password, role);
+    setError(null);
+    
+    if (!email || !password) {
+      setError("Please enter both email and password");
+      return;
+    }
+    
+    try {
+      await login(email, password);
+    } catch (err) {
+      // Error is handled in the login function and displayed via toast
+    }
   };
 
   return (
@@ -30,6 +45,11 @@ const Login = () => {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <div className="relative">
@@ -43,7 +63,7 @@ const Login = () => {
                   className="pl-10"
                   required
                 />
-                <User className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                <Mail className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
               </div>
             </div>
             <div className="space-y-2">
@@ -60,24 +80,6 @@ const Login = () => {
                 />
                 <Lock className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
               </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Account Type</Label>
-              <RadioGroup 
-                value={role} 
-                onValueChange={(value) => setRole(value as UserRole)}
-                className="flex space-x-2"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="user" id="user" />
-                  <Label htmlFor="user" className="cursor-pointer">User</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="admin" id="admin" />
-                  <Label htmlFor="admin" className="cursor-pointer">Admin</Label>
-                </div>
-              </RadioGroup>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
