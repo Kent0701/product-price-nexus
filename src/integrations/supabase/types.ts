@@ -194,20 +194,58 @@ export type Database = {
       product: {
         Row: {
           description: string | null
+          is_deleted: boolean | null
           prodcode: string
           unit: string | null
         }
         Insert: {
           description?: string | null
+          is_deleted?: boolean | null
           prodcode: string
           unit?: string | null
         }
         Update: {
           description?: string | null
+          is_deleted?: boolean | null
           prodcode?: string
           unit?: string | null
         }
         Relationships: []
+      }
+      product_audit_log: {
+        Row: {
+          action: string
+          description: string | null
+          id: string
+          performed_at: string
+          performed_by: string
+          prodcode: string
+        }
+        Insert: {
+          action: string
+          description?: string | null
+          id?: string
+          performed_at?: string
+          performed_by: string
+          prodcode: string
+        }
+        Update: {
+          action?: string
+          description?: string | null
+          id?: string
+          performed_at?: string
+          performed_by?: string
+          prodcode?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_audit_log_prodcode_fkey"
+            columns: ["prodcode"]
+            isOneToOne: false
+            referencedRelation: "product"
+            referencedColumns: ["prodcode"]
+          },
+        ]
       }
       sales: {
         Row: {

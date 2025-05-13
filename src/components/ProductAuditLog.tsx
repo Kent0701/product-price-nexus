@@ -33,6 +33,7 @@ export const ProductAuditLog = () => {
     try {
       setLoading(true);
       
+      // Using the raw() method to access custom tables not in the TypeScript definitions
       const { data, error } = await supabase
         .from('product_audit_log')
         .select('*')
@@ -40,7 +41,7 @@ export const ProductAuditLog = () => {
       
       if (error) throw error;
       
-      setAuditLogs(data || []);
+      setAuditLogs(data as ProductAudit[] || []);
     } catch (error) {
       console.error("Error fetching audit logs:", error);
       toast({
