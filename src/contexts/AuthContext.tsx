@@ -120,14 +120,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Logout function - Updated to redirect to homepage
+  // Logout function - Fixed to redirect to login page
   const logout = async () => {
     try {
       await supabase.auth.signOut();
       setUser(null);
       toast.success("Logged out successfully");
-      // Redirecting to homepage (/) instead of /login
-      navigate("/");
+      // Redirect to login page instead of homepage
+      navigate("/login");
     } catch (error: any) {
       toast.error(error.message || "Logout failed");
     }

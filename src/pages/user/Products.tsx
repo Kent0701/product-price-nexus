@@ -12,7 +12,8 @@ interface Product {
   description: string;
   unit: string;
   currentPrice: number;
-  inStock?: boolean; // We'll assume all products are in stock by default
+  inStock?: boolean;
+  is_deleted?: boolean; // Added is_deleted field
 }
 
 const UserProducts = () => {
@@ -24,10 +25,11 @@ const UserProducts = () => {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        // Get all products
+        // Get products that are NOT deleted
         const { data: productData, error: productError } = await supabase
           .from('product')
-          .select('*');
+          .select('*')
+          .eq('is_deleted', false); // Only get non-deleted products
         
         if (productError) throw productError;
 
@@ -48,7 +50,8 @@ const UserProducts = () => {
               description: product.description || '',
               unit: product.unit || '',
               currentPrice: priceData && priceData.length > 0 ? priceData[0].unitprice : 0,
-              inStock: true // We'll assume all products are in stock by default
+              inStock: true, // We'll assume all products are in stock by default
+              is_deleted: product.is_deleted || false
             };
           })
         );

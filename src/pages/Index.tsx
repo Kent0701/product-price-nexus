@@ -30,9 +30,14 @@ const Index = () => {
           </div>
           <div className="flex items-center space-x-4">
             {user ? (
-              <Button onClick={() => navigate(user.role === "admin" ? "/admin/dashboard" : "/dashboard")}>
-                Go to Dashboard
-              </Button>
+              <>
+                <Button onClick={() => navigate(user.role === "admin" ? "/admin/dashboard" : "/dashboard")}>
+                  Go to Dashboard
+                </Button>
+                <Button variant="outline" onClick={() => navigate(user.role === "admin" ? "/admin/dashboard" : "/dashboard")}>
+                  My Account
+                </Button>
+              </>
             ) : (
               <>
                 <Button variant="outline" onClick={() => navigate("/login")}>
