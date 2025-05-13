@@ -23,7 +23,7 @@ const DashboardLayout = () => {
       {/* Sidebar */}
       <div 
         className={cn(
-          "bg-card border-r transition-all duration-300 ease-in-out", 
+          "bg-card border-r transition-all duration-300 ease-in-out relative flex flex-col", 
           isSidebarOpen ? "w-64" : "w-16"
         )}
       >
@@ -41,7 +41,7 @@ const DashboardLayout = () => {
           </Button>
         </div>
         
-        <div className="p-2 space-y-1">
+        <div className="p-2 space-y-1 flex-grow">
           {isAdmin ? (
             <>
               <NavItem 
@@ -93,7 +93,8 @@ const DashboardLayout = () => {
           )}
         </div>
         
-        <div className="absolute bottom-4 left-0 right-0 p-2">
+        {/* Sign Out Button - Now within the sidebar card */}
+        <div className="p-2 mt-auto mb-4">
           <Button 
             variant="outline" 
             className="w-full justify-start" 

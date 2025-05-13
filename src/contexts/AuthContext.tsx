@@ -1,4 +1,3 @@
-
 import { createContext, ReactNode, useContext, useEffect, useState } from "react";
 import { User as AuthUser, UserRole } from "../types/auth";
 import { useNavigate } from "react-router-dom";
@@ -121,13 +120,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Logout function
+  // Logout function - Updated to redirect to homepage
   const logout = async () => {
     try {
       await supabase.auth.signOut();
       setUser(null);
       toast.success("Logged out successfully");
-      navigate("/login");
+      // Redirecting to homepage (/) instead of /login
+      navigate("/");
     } catch (error: any) {
       toast.error(error.message || "Logout failed");
     }
