@@ -42,6 +42,7 @@ interface ProductDialogProps {
     description: string;
     unit: string;
     currentPrice: number;
+    is_deleted?: boolean;
   } | null;
   onSuccess: () => void;
 }
@@ -105,6 +106,19 @@ export const ProductDialog = ({ open, onOpenChange, product, onSuccess }: Produc
           
           if (priceError) throw priceError;
         }
+
+        // Log the edit action in audit log
+        const { error: auditError } = await supabase
+          .from('product_audit_log')
+          .insert({
+            prodcode: values.prodcode,
+            description: values.description,
+            action: 'edited',
+            performed_by: 'admin', // In a real app, use the actual user name/id
+            performed_at: new Date().toISOString()
+          });
+
+        if (auditError) console.error("Error logging audit:", auditError);
         
         toast({
           title: "Success",
@@ -118,6 +132,7 @@ export const ProductDialog = ({ open, onOpenChange, product, onSuccess }: Produc
             prodcode: values.prodcode,
             description: values.description,
             unit: values.unit,
+            is_deleted: false
           });
         
         if (productError) throw productError;
@@ -132,6 +147,19 @@ export const ProductDialog = ({ open, onOpenChange, product, onSuccess }: Produc
           });
         
         if (priceError) throw priceError;
+
+        // Log the create action in audit log
+        const { error: auditError } = await supabase
+          .from('product_audit_log')
+          .insert({
+            prodcode: values.prodcode,
+            description: values.description,
+            action: 'created',
+            performed_by: 'admin', // In a real app, use the actual user name/id
+            performed_at: new Date().toISOString()
+          });
+
+        if (auditError) console.error("Error logging audit:", auditError);
         
         toast({
           title: "Success",

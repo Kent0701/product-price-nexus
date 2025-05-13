@@ -6,17 +6,24 @@ import {
   LogOut, 
   User, 
   Package2, 
-  Settings 
+  Settings,
+  History
 } from "lucide-react";
-import { Link, Outlet } from "react-router-dom";
+import { Link, Outlet, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
 const DashboardLayout = () => {
   const { user, logout } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const navigate = useNavigate();
   
   const isAdmin = user?.role === "admin";
+
+  const handleLogout = () => {
+    logout();
+    navigate('/'); // Redirect to homepage
+  };
   
   return (
     <div className="min-h-screen bg-background flex">
@@ -54,6 +61,12 @@ const DashboardLayout = () => {
                 to="/admin/products" 
                 icon={<Package className="h-5 w-5" />} 
                 label="Products" 
+                isSidebarOpen={isSidebarOpen} 
+              />
+              <NavItem 
+                to="/admin/audit" 
+                icon={<History className="h-5 w-5" />} 
+                label="Product Audit" 
                 isSidebarOpen={isSidebarOpen} 
               />
               <NavItem 
@@ -98,7 +111,7 @@ const DashboardLayout = () => {
           <Button 
             variant="outline" 
             className="w-full justify-start" 
-            onClick={logout}
+            onClick={handleLogout}
           >
             <LogOut className="h-5 w-5 mr-2" />
             {isSidebarOpen && "Sign Out"}

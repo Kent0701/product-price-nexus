@@ -11,11 +11,12 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Package2, Plus, Search, Edit, Trash2 } from "lucide-react";
+import { Package2, Plus, Search, Edit, Trash2, RotateCw } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ProductDialog } from "@/components/ProductDialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Product {
   prodcode: string;
@@ -23,6 +24,7 @@ interface Product {
   unit: string;
   currentPrice: number;
   inStock?: boolean;
+  is_deleted?: boolean;
 }
 
 const AdminProducts = () => {
@@ -31,6 +33,7 @@ const AdminProducts = () => {
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [activeTab, setActiveTab] = useState("active");
   const { toast } = useToast();
 
   // Fetch products from Supabase
@@ -61,7 +64,8 @@ const AdminProducts = () => {
             description: product.description || '',
             unit: product.unit || '',
             currentPrice: priceData && priceData.length > 0 ? priceData[0].unitprice : 0,
-            inStock: true // You may want to add this field to your database
+            inStock: true, // You may want to add this field to your database
+            is_deleted: product.is_deleted || false
           };
         })
       );
@@ -83,33 +87,44 @@ const AdminProducts = () => {
     fetchProducts();
   }, []);
 
-  // Filter products based on search term
+  // Filter products based on search term and active tab
   const filteredProducts = searchTerm
     ? products.filter(product =>
-        product.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.prodcode.toLowerCase().includes(searchTerm.toLowerCase())
+        (product.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.prodcode.toLowerCase().includes(searchTerm.toLowerCase())) &&
+        (activeTab === "active" ? !product.is_deleted : product.is_deleted)
       )
-    : products;
+    : products.filter(product => 
+        activeTab === "active" ? !product.is_deleted : product.is_deleted
+      );
 
-  // Handle product deletion
-  const handleDeleteProduct = async (prodcode: string) => {
-    if (confirm("Are you sure you want to delete this product? This will also delete its price history.")) {
+  // Handle product soft deletion
+  const handleSoftDeleteProduct = async (prodcode: string) => {
+    if (confirm("Are you sure you want to delete this product?")) {
       try {
-        // First delete price history records
-        const { error: priceHistError } = await supabase
-          .from('pricehist')
-          .delete()
-          .eq('prodcode', prodcode);
+        const productToDelete = products.find(p => p.prodcode === prodcode);
+        if (!productToDelete) return;
         
-        if (priceHistError) throw priceHistError;
-        
-        // Then delete the product
-        const { error: productError } = await supabase
+        // Update product to mark as deleted
+        const { error } = await supabase
           .from('product')
-          .delete()
+          .update({ is_deleted: true })
           .eq('prodcode', prodcode);
         
-        if (productError) throw productError;
+        if (error) throw error;
+        
+        // Log the delete action
+        const { error: auditError } = await supabase
+          .from('product_audit_log')
+          .insert({
+            prodcode: prodcode,
+            description: productToDelete.description,
+            action: 'deleted',
+            performed_by: 'admin', // In a real app, use the actual user name/id
+            performed_at: new Date().toISOString()
+          });
+
+        if (auditError) console.error("Error logging audit:", auditError);
         
         toast({
           title: "Success",
@@ -122,10 +137,54 @@ const AdminProducts = () => {
         console.error("Error deleting product:", error);
         toast({
           title: "Error",
-          description: "Failed to delete product. It might be referenced in sales records.",
+          description: "Failed to delete product.",
           variant: "destructive",
         });
       }
+    }
+  };
+
+  // Handle product recovery
+  const handleRecoverProduct = async (prodcode: string) => {
+    try {
+      const productToRecover = products.find(p => p.prodcode === prodcode);
+      if (!productToRecover) return;
+      
+      // Update product to mark as not deleted
+      const { error } = await supabase
+        .from('product')
+        .update({ is_deleted: false })
+        .eq('prodcode', prodcode);
+      
+      if (error) throw error;
+      
+      // Log the recovery action
+      const { error: auditError } = await supabase
+        .from('product_audit_log')
+        .insert({
+          prodcode: prodcode,
+          description: productToRecover.description,
+          action: 'recovered',
+          performed_by: 'admin', // In a real app, use the actual user name/id
+          performed_at: new Date().toISOString()
+        });
+
+      if (auditError) console.error("Error logging audit:", auditError);
+      
+      toast({
+        title: "Success",
+        description: "Product recovered successfully",
+      });
+      
+      // Refresh the product list
+      fetchProducts();
+    } catch (error) {
+      console.error("Error recovering product:", error);
+      toast({
+        title: "Error",
+        description: "Failed to recover product.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -149,6 +208,18 @@ const AdminProducts = () => {
           <Plus className="mr-2 h-4 w-4" /> Add Product
         </Button>
       </div>
+      
+      <Tabs 
+        defaultValue="active" 
+        className="mb-6"
+        value={activeTab}
+        onValueChange={setActiveTab}
+      >
+        <TabsList>
+          <TabsTrigger value="active">Active Products</TabsTrigger>
+          <TabsTrigger value="deleted">Deleted Products</TabsTrigger>
+        </TabsList>
+      </Tabs>
       
       <div className="mb-6 relative">
         <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -190,36 +261,49 @@ const AdminProducts = () => {
                   <TableCell>{product.unit}</TableCell>
                   <TableCell>${product.currentPrice.toFixed(2)}</TableCell>
                   <TableCell>
-                    <Badge variant={product.inStock ? "default" : "secondary"}>
-                      {product.inStock ? "In Stock" : "Out of Stock"}
+                    <Badge variant={product.is_deleted ? "secondary" : "default"}>
+                      {product.is_deleted ? "Deleted" : "Active"}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right space-x-2">
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      onClick={() => handleEditProduct(product)}
-                      title="Edit product"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      onClick={() => handleDeleteProduct(product.prodcode)}
-                      title="Delete product"
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                    <Link to={`/admin/products/${product.prodcode}`} className="inline-flex">
+                    {!product.is_deleted ? (
+                      <>
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          onClick={() => handleEditProduct(product)}
+                          title="Edit product"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          onClick={() => handleSoftDeleteProduct(product.prodcode)}
+                          title="Delete product"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                        <Link to={`/admin/products/${product.prodcode}`} className="inline-flex">
+                          <Button 
+                            variant="outline" 
+                            size="icon"
+                            title="View details"
+                          >
+                            <Package2 className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                      </>
+                    ) : (
                       <Button 
                         variant="outline" 
-                        size="icon"
-                        title="View details"
+                        size="icon" 
+                        onClick={() => handleRecoverProduct(product.prodcode)}
+                        title="Recover product"
                       >
-                        <Package2 className="h-4 w-4" />
+                        <RotateCw className="h-4 w-4 text-green-600" />
                       </Button>
-                    </Link>
+                    )}
                   </TableCell>
                 </TableRow>
               ))
