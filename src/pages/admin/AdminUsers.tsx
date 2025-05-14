@@ -48,34 +48,19 @@ const AdminUsers = () => {
     try {
       setLoading(true);
       
-      // Fetch all users (this requires admin privileges)
+      // Fetch all users from our user_details view (which requires admin privileges)
       const { data, error } = await supabase
-        .from('auth.users')
-        .select(`
-          id,
-          email,
-          raw_user_meta_data->name,
-          raw_user_meta_data->role,
-          banned_until,
-          created_at
-        `)
-        .returns<any[]>();
+        .from('user_details')
+        .select('*')
+        .returns<DbUser[]>();
       
       if (error) {
         throw error;
       }
       
-      // Process user data
-      const processedUsers: DbUser[] = data.map(user => ({
-        id: user.id,
-        email: user.email,
-        name: user.name || user.email.split('@')[0],
-        role: user.role || 'user',
-        status: user.banned_until && new Date(user.banned_until) > new Date() ? 'inactive' : 'active',
-        joined_at: new Date(user.created_at).toLocaleDateString()
-      }));
-      
-      setUsers(processedUsers);
+      if (data) {
+        setUsers(data);
+      }
     } catch (error: any) {
       console.error("Error fetching users:", error.message);
       toast({
@@ -144,11 +129,11 @@ const AdminUsers = () => {
     
     // Set up real-time subscription for user updates
     const channel = supabase
-      .channel('public:auth.users')
+      .channel('public:user_details')
       .on('postgres_changes', { 
         event: '*', 
-        schema: 'auth', 
-        table: 'users' 
+        schema: 'public', 
+        table: 'user_details' 
       }, () => {
         fetchUsers(); // Refresh users on any change
       })
@@ -218,7 +203,7 @@ const AdminUsers = () => {
                       {user.status}
                     </Badge>
                   </TableCell>
-                  <TableCell>{user.joined_at}</TableCell>
+                  <TableCell>{new Date(user.joined_at).toLocaleDateString()}</TableCell>
                   <TableCell>
                     {user.id !== currentUser?.id && (
                       user.status === "active" ? (
